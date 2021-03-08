@@ -1,12 +1,10 @@
-# autoencoder-mnist
+# denoising-conv-autoencoder
 
-Simple autoencoder for the MNIST dataset.
+Denoising convolutional autoencoder for the  MNIST handwritten digit database.
 
-Original: 
-![](figures/original.png)
-
-Decoded using fully connected NN: 
-![](figures/decoded.png) 
-
-Decoded using convolutional NN: 
-![](figures/decoded_cnn.png) 
+Digits with noise (salt and peper, and random noise): 
+![](figures/noisy.png)
+Denoised digits using denoising convolutional neural network: 
+![](figures/denoised.png)
+GIF for comparison: 
+![](figures/comparison.gif)

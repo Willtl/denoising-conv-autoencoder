@@ -6,16 +6,104 @@ import torchvision
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import kmeans
+import random
+from torch.utils.data import Dataset, DataLoader
 
 torch.manual_seed(1)    # reproducible
 
 # Hyper Parameters
-EPOCH = 20
+EPOCH = 40
 BATCH_SIZE = 128
-LR = 0.0002
+LR = 0.0005
 DOWNLOAD_MNIST = False
 N_TEST_IMG = 10
+NOISE_PROB = 0.25
+
+
+def main():
+    # Define GPU and CPU devices
+    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+    cpu = torch.device("cpu")
+    gpu = torch.device("cuda:0")
+
+    # Create noisy data
+    # create_noisy_dataset(train_loader)
+
+    # Load noise, normal, and labels
+    noise_data = torch.load('noise_data.pt')
+    normal_data = torch.load('normal_data.pt')
+    label_data = torch.load('label_data.pt')
+
+    # Create dataset
+    dataset = NoisyDataset(noise_data, normal_data, label_data)
+    dataloader = DataLoader(dataset=dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+
+    # Move data to GPU
+    batch_x = []
+    batch_y = []
+    batch_z = []
+    for noise_data, normal_data, label_data in dataloader:
+        batch_x.append(Variable(noise_data).to(device))
+        batch_y.append(Variable(normal_data).to(device))
+        batch_z.append(Variable(label_data).to(device))
+
+    # Define model
+    autoencoder = ConvAutoEncoder()
+    # Move it to the GPU
+    autoencoder.to(device)
+    # Define optimizer after moving to the GPU
+    optimizer = torch.optim.Adam(autoencoder.parameters(), lr=LR)
+    criterion = nn.MSELoss().to(device)
+
+    # Training
+    for epoch in range(EPOCH):
+        # To calculate mean loss over this epoch
+        epoch_loss = []
+        start = time.time()
+
+        # Loop through batches
+        for b_x, b_y in zip(batch_x, batch_y):
+            encoded, decoded = autoencoder(b_x)
+
+            loss = criterion(decoded, b_y)  # mean square error
+            optimizer.zero_grad()           # clear gradients for this training step
+            loss.backward()                 # backpropagation, compute gradients
+            optimizer.step()                # apply gradients
+
+            epoch_loss.append(loss.to(cpu).item())  # used to calculate the epoch mean loss
+        print(f'Epoch {epoch}, mean loss: {np.mean(np.array(epoch_loss))}, time: {time.time() - start}')
+
+    # # First N_TEST_IMG images for visualization
+    view_data = Variable(batch_x[0][:N_TEST_IMG]).to(cpu)
+
+    # Testing - Plotting decoded image
+    with torch.no_grad():
+        # Set the model to evaluation mode
+        autoencoder = autoencoder.eval()
+
+        # Encode and decode view_data to visualize the outcome
+        # plot_one(view_data[0])
+        # print(view_data.shape)
+        _, decoded_data = autoencoder(view_data.to(device))
+        decoded_data = decoded_data.to(cpu)
+        # plot_one(decoded_data[0])
+        # print(decoded_data.shape)
+        # quit()
+
+        # initialize figure
+        f, a = plt.subplots(2, N_TEST_IMG, figsize=(5, 2))
+
+        for i in range(N_TEST_IMG):
+            a[0][i].imshow(np.reshape(view_data.data.numpy()[i], (28, 28)), cmap='gray')
+            a[0][i].set_xticks(())
+            a[0][i].set_yticks(())
+
+        for i in range(N_TEST_IMG):
+            a[1][i].clear()
+            a[1][i].imshow(np.reshape(decoded_data.data.numpy()[i], (28, 28)), cmap='gray')
+            a[1][i].set_xticks(())
+            a[1][i].set_yticks(())
+        plt.show()
 
 
 class ConvAutoEncoder(nn.Module):
@@ -90,6 +178,20 @@ class ConvAutoEncoder(nn.Module):
         return conv_encoded, conv_decoded
 
 
+class NoisyDataset(Dataset):
+    def __init__(self, noise_data, normal_data, label_data):
+        self.x = noise_data
+        self.y = normal_data
+        self.label = label_data
+        self.n_samples = noise_data.shape[0]
+
+    def __getitem__(self, index):
+        return self.x[index], self.y[index], self.label[index]
+
+    def __len__(self):
+        return self.n_samples
+
+
 def load_dataset():
     # Mnist digits dataset
     data = torchvision.datasets.MNIST(
@@ -101,86 +203,44 @@ def load_dataset():
     return data
 
 
-def plot_one(data, target):
-    # plot one example
-    # print(data.data.size())     # (60000, 28, 28)
-    # print(data.targets.size())   # (60000)
-    # plt.imshow(data.numpy(), cmap='gray')
+def plot_one(data):
+    data = data.view(28, 28)
     plt.imshow(data, cmap='gray')
-    plt.title('%i' % target)
+    plt.title("Figure")
     plt.show()
 
 
-# Define GPU and CPU devices
-device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-cpu = torch.device("cpu")
-gpu = torch.device("cuda:0")
+def create_noisy_dataset(train_loader):
+    # Load dataset
+    train_data = load_dataset()
+    # Data Loader for easy mini-batch return in training
+    train_loader = Data.DataLoader(dataset=train_data, batch_size=60000, shuffle=True, pin_memory=True)
+    # Loop through to add noise
+    for x, y in train_loader:
+        var_x = Variable(x)
+        var_y = Variable(x)
+        var_l = Variable(y)
 
-# Load dataset
-train_data = load_dataset()
+        # Add noise to the data
+        for i in range(60000):
+            print(i)
+            for j in range(28):
+                for k in range(28):
+                    r = random.random()
 
-# Define model
-autoencoder = ConvAutoEncoder()
+                    if r <= NOISE_PROB / 3:
+                        var_x[i][0][j][k] = 0.0
+                    elif r <= NOISE_PROB / 2:
+                        var_x[i][0][j][k] = 1.0
+                    elif r <= NOISE_PROB:
+                        var_x[i][0][j][k] = random.random()
 
-# Move it to the GPU
-autoencoder.to(device)
-# Define optimizer after moving to the GPU
-optimizer = torch.optim.Adam(autoencoder.parameters(), lr=LR)
-criterion = nn.MSELoss().to(device)
+        # plot_one(var_x[0], var_x[0])
 
-# Data Loader for easy mini-batch return in training
-train_loader = Data.DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+        torch.save(var_x, 'noise_data.pt')
+        torch.save(var_y, 'normal_data.pt')
+        torch.save(var_l, 'label_data.pt')
+        break
 
-# Move data to GPU
-batch_x = []
-batch_y = []
-for x, y in train_loader:
-    batch_x.append(Variable(x).to(device))
-    batch_y.append(Variable(x).to(device))
 
-gpu_data = zip(batch_x, batch_y)
-
-# Training
-for epoch in range(EPOCH):
-    # To calculate mean loss over this epoch
-    epoch_loss = []
-    start = time.time()
-
-    # Loop through batches
-    for b_x, b_y in zip(batch_x, batch_y):
-        encoded, decoded = autoencoder(b_x)
-
-        loss = criterion(decoded, b_y)      # mean square error
-        optimizer.zero_grad()               # clear gradients for this training step
-        loss.backward()                     # backpropagation, compute gradients
-        optimizer.step()                    # apply gradients
-
-        epoch_loss.append(loss.to(cpu).item())      # used to calculate the epoch mean loss
-    print(f'Epoch {epoch}, mean loss: {np.mean(np.array(epoch_loss))}, time: {time.time() - start}')
-
-# First N_TEST_IMG images for visualization
-view_data = Variable(train_data.data[:N_TEST_IMG].view(-1, 1, 28, 28).type(torch.FloatTensor) / 255.)
-
-# Testing - Plotting decoded image
-with torch.no_grad():
-    # Set the model to evaluation mode
-    autoencoder = autoencoder.eval()
-
-    # Encode and decode view_data to visualize the outcome
-    _, decoded_data = autoencoder(view_data.to(device))
-    decoded_data = decoded_data.to(cpu)
-
-    # initialize figure
-    f, a = plt.subplots(2, N_TEST_IMG, figsize=(5, 2))
-
-    for i in range(N_TEST_IMG):
-        a[0][i].imshow(np.reshape(view_data.data.numpy()[i], (28, 28)), cmap='gray')
-        a[0][i].set_xticks(())
-        a[0][i].set_yticks(())
-
-    for i in range(N_TEST_IMG):
-        a[1][i].clear()
-        a[1][i].imshow(np.reshape(decoded_data.data.numpy()[i], (28, 28)), cmap='gray')
-        a[1][i].set_xticks(())
-        a[1][i].set_yticks(())
-    plt.show()
+main()
