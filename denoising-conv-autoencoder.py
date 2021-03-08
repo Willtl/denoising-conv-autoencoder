@@ -12,12 +12,13 @@ from torch.utils.data import Dataset, DataLoader
 torch.manual_seed(1)    # reproducible
 
 # Hyper Parameters
-EPOCH = 40
+EPOCH = 10
 BATCH_SIZE = 128
 LR = 0.0005
-DOWNLOAD_MNIST = False
-N_TEST_IMG = 10
+DOWNLOAD_MNIST = True
+ADD_NOISE_MNIST = False
 NOISE_PROB = 0.25
+N_TEST_IMG = 10
 
 
 def main():
@@ -26,15 +27,18 @@ def main():
     cpu = torch.device("cpu")
     gpu = torch.device("cuda:0")
 
-    # Create noisy data
-    # create_noisy_dataset(train_loader)
+    # Read MNIST handwritten digit database, add noise given probability and save to disk
+    if ADD_NOISE_MNIST:
+        train_data = load_dataset()
+        train_loader = Data.DataLoader(dataset=train_data, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+        create_noisy_dataset(train_loader)
 
     # Load noise, normal, and labels
     noise_data = torch.load('noise_data.pt')
     normal_data = torch.load('normal_data.pt')
     label_data = torch.load('label_data.pt')
 
-    # Create dataset
+    # Create noise dataset for easy management
     dataset = NoisyDataset(noise_data, normal_data, label_data)
     dataloader = DataLoader(dataset=dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
@@ -47,20 +51,19 @@ def main():
         batch_y.append(Variable(normal_data).to(device))
         batch_z.append(Variable(label_data).to(device))
 
-    # Define model
+    # Load model and move it to the GPU
     autoencoder = ConvAutoEncoder()
-    # Move it to the GPU
     autoencoder.to(device)
-    # Define optimizer after moving to the GPU
+    # Define optimizer (must be done after moving the model to the GPU)
     optimizer = torch.optim.Adam(autoencoder.parameters(), lr=LR)
+    # Criterion for the conv. autoencoder
     criterion = nn.MSELoss().to(device)
 
-    # Training
+    # Training loop
     for epoch in range(EPOCH):
-        # To calculate mean loss over this epoch
+        # To calculate mean loss and calculate time per epoch
         epoch_loss = []
         start = time.time()
-
         # Loop through batches
         for b_x, b_y in zip(batch_x, batch_y):
             encoded, decoded = autoencoder(b_x)
@@ -82,13 +85,8 @@ def main():
         autoencoder = autoencoder.eval()
 
         # Encode and decode view_data to visualize the outcome
-        # plot_one(view_data[0])
-        # print(view_data.shape)
         _, decoded_data = autoencoder(view_data.to(device))
         decoded_data = decoded_data.to(cpu)
-        # plot_one(decoded_data[0])
-        # print(decoded_data.shape)
-        # quit()
 
         # initialize figure
         f, a = plt.subplots(2, N_TEST_IMG, figsize=(5, 2))
@@ -133,22 +131,11 @@ class ConvAutoEncoder(nn.Module):
             nn.BatchNorm2d(n_features * 4),
             nn.ReLU()
             # nn.MaxPool2d(kernel_size=2),
-            # Output [128, features_e * 3, 4, 4]
-
-            # In this case output = [(13 + 2 * 1 - 5) / 1] + 1 = 11
-            # nn.Conv2d(in_channels=10, out_channels=24, kernel_size=4, padding=1, stride=1),
-            # nn.Sigmoid(),
-            # nn.MaxPool2d(kernel_size=2),  # End up with 24 channels of size 5 x 5
-
-            # Dense layers
-            # nn.Linear(in_features=24 * 5 * 5, out_features=64),
-            # nn.Relu(),
-            # nn.Dropout(p=0.2),  # Dropout with probability of 0.2 to avoid overfitting
-            # nn.Linear(in_features=64, out_features=10)  # 10 equals the number of classes
+            # Output [128, features_e * 4, 4, 4]
         )
 
         self.convDecoder = nn.Sequential(
-            # Input [128, features_e * 3, 4, 4]
+            # Input [128, features_e * 4, 4, 4]
             nn.ConvTranspose2d(n_features * 4, n_features * 2, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm2d(n_features * 2),
             nn.ReLU(),
@@ -165,14 +152,8 @@ class ConvAutoEncoder(nn.Module):
         )
 
     def forward(self, x):
-        # print("forwarding")
-        # print(x.shape)
         conv_encoded = self.convEncoder(x)
-        # print("encoded shape", conv_encoded.shape)
-        # quit()
         conv_decoded = self.convDecoder(conv_encoded)
-        # print("decoded shape", conv_decoded.shape)
-        # quit()
 
         # decoded = self.decoder(encoded)
         return conv_encoded, conv_decoded
@@ -192,8 +173,8 @@ class NoisyDataset(Dataset):
         return self.n_samples
 
 
+# MNIST handwritten digit database
 def load_dataset():
-    # Mnist digits dataset
     data = torchvision.datasets.MNIST(
         root='./mnist/',
         train=True,
@@ -210,6 +191,7 @@ def plot_one(data):
     plt.show()
 
 
+# Add noise to the MNIST handwritten digit database and save to disk
 def create_noisy_dataset(train_loader):
     # Load dataset
     train_data = load_dataset()
