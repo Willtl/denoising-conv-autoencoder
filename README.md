@@ -1,8 +1,11 @@
 # denoising-conv-autoencoder
 
-Denoising convolutional autoencoder for the  MNIST handwritten digit database.
+Denoising convolutional autoencoder for the MNIST handwritten digit database.
 
-The amount of noise can be easilly adjustable.
+* Salt, peper, and random noise is added to the MNIST handwritten digit database.
+* Parameters allow to control the amount of noise
+* The new dataset can be store so it is not required to compute/add the noise every time
+* Everything is moved to the GPU (since the dataset is not so big)
 
 Digits with noise (salt and peper, and random noise): 
 ![](figures/noisy.png)
