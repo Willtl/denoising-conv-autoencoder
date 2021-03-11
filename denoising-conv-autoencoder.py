@@ -34,12 +34,12 @@ def main():
         create_noisy_dataset(train_loader)
 
     # Load noise, normal, and labels
-    noise_data = torch.load('noisy-mnist/0.1 to 0.75/noisy.pt')
+    noise_data = torch.load('noisy-mnist/0.25/noisy.pt')
     # index = random.randint(0, 60000)
     # plot_one(noise_data[index])
-    normal_data = torch.load('noisy-mnist/0.1 to 0.75/normal.pt')
+    normal_data = torch.load('noisy-mnist/0.25/normal.pt')
     # plot_one(normal_data[index])
-    label_data = torch.load('noisy-mnist/0.1 to 0.75/label.pt')
+    label_data = torch.load('noisy-mnist/0.25/label.pt')
 
     # Create noise dataset for easy management
     dataset = NoisyDataset(noise_data, normal_data, label_data)
