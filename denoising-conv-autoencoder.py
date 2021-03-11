@@ -12,12 +12,12 @@ from torch.utils.data import Dataset, DataLoader
 torch.manual_seed(1)    # reproducible
 
 # Hyper Parameters
-EPOCH = 10
-BATCH_SIZE = 128
+EPOCH = 20
+BATCH_SIZE = 64
 LR = 0.0005
 DOWNLOAD_MNIST = True
 ADD_NOISE_MNIST = False
-NOISE_PROB = 0.25
+NOISE_PROB = 0.5
 N_TEST_IMG = 10
 
 
@@ -34,9 +34,12 @@ def main():
         create_noisy_dataset(train_loader)
 
     # Load noise, normal, and labels
-    noise_data = torch.load('noise_data.pt')
-    normal_data = torch.load('normal_data.pt')
-    label_data = torch.load('label_data.pt')
+    noise_data = torch.load('noisy-mnist/0.1 to 0.75/noisy.pt')
+    # index = random.randint(0, 60000)
+    # plot_one(noise_data[index])
+    normal_data = torch.load('noisy-mnist/0.1 to 0.75/normal.pt')
+    # plot_one(normal_data[index])
+    label_data = torch.load('noisy-mnist/0.1 to 0.75/label.pt')
 
     # Create noise dataset for easy management
     dataset = NoisyDataset(noise_data, normal_data, label_data)
@@ -52,7 +55,7 @@ def main():
         batch_z.append(Variable(label_data).to(device))
 
     # Load model and move it to the GPU
-    autoencoder = ConvAutoEncoder()
+    autoencoder = ConvAutoEncoder3x()
     autoencoder.to(device)
     # Define optimizer (must be done after moving the model to the GPU)
     optimizer = torch.optim.Adam(autoencoder.parameters(), lr=LR)
@@ -77,7 +80,9 @@ def main():
         print(f'Epoch {epoch}, mean loss: {np.mean(np.array(epoch_loss))}, time: {time.time() - start}')
 
     # # First N_TEST_IMG images for visualization
-    view_data = Variable(batch_x[0][:N_TEST_IMG]).to(cpu)
+    batch_numb = random.randint(0, len(batch_x))
+    view_data = Variable(batch_x[batch_numb][:N_TEST_IMG]).to(cpu)
+    view_norm = Variable(batch_y[batch_numb][:N_TEST_IMG]).to(cpu)
 
     # Testing - Plotting decoded image
     with torch.no_grad():
@@ -89,7 +94,7 @@ def main():
         decoded_data = decoded_data.to(cpu)
 
         # initialize figure
-        f, a = plt.subplots(2, N_TEST_IMG, figsize=(5, 2))
+        f, a = plt.subplots(3, N_TEST_IMG, figsize=(5, 2))
 
         for i in range(N_TEST_IMG):
             a[0][i].imshow(np.reshape(view_data.data.numpy()[i], (28, 28)), cmap='gray')
@@ -98,9 +103,15 @@ def main():
 
         for i in range(N_TEST_IMG):
             a[1][i].clear()
-            a[1][i].imshow(np.reshape(decoded_data.data.numpy()[i], (28, 28)), cmap='gray')
+            a[1][i].imshow(np.reshape(view_norm.data.numpy()[i], (28, 28)), cmap='gray')
             a[1][i].set_xticks(())
             a[1][i].set_yticks(())
+
+        for i in range(N_TEST_IMG):
+            a[2][i].clear()
+            a[2][i].imshow(np.reshape(decoded_data.data.numpy()[i], (28, 28)), cmap='gray')
+            a[2][i].set_xticks(())
+            a[2][i].set_yticks(())
         plt.show()
 
 
@@ -159,6 +170,57 @@ class ConvAutoEncoder(nn.Module):
         return conv_encoded, conv_decoded
 
 
+class ConvAutoEncoder3x(nn.Module):
+    def __init__(self):
+        # Initialize superclass
+        super(ConvAutoEncoder3x, self).__init__()
+
+        n_features = 11
+        # Conv network
+        # Output size of each convolutional layer = [(in_channel + 2 * padding - kernel_size) / stride] + 1
+        self.convEncoder = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=n_features, kernel_size=4, stride=2, padding=3),
+            nn.BatchNorm2d(n_features),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=n_features, out_channels=n_features * 2, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(n_features * 2),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=n_features * 2, out_channels=n_features * 3, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(n_features * 3),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=n_features * 3, out_channels=n_features * 4, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(n_features * 4),
+            nn.ReLU()
+        )
+
+        self.convDecoder = nn.Sequential(
+            nn.ConvTranspose2d(n_features * 4, n_features * 3, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(n_features * 3),
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(n_features * 3, n_features * 2, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(n_features * 2),
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(n_features * 2, n_features, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(n_features),
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(n_features, 1, kernel_size=4, stride=2, padding=3),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        conv_encoded = self.convEncoder(x)
+        conv_decoded = self.convDecoder(conv_encoded)
+
+        # decoded = self.decoder(encoded)
+        return conv_encoded, conv_decoded
+
+
 class NoisyDataset(Dataset):
     def __init__(self, noise_data, normal_data, label_data):
         self.x = noise_data
@@ -200,12 +262,13 @@ def create_noisy_dataset(train_loader):
     # Loop through to add noise
     for x, y in train_loader:
         var_x = Variable(x)
-        var_y = Variable(x)
+        var_y = Variable(torch.clone(x))
         var_l = Variable(y)
 
         # Add noise to the data
         for i in range(60000):
             print(i)
+            NOISE_PROB = 0.1 + random.random() * 0.65
             for j in range(28):
                 for k in range(28):
                     r = random.random()
@@ -222,7 +285,7 @@ def create_noisy_dataset(train_loader):
         torch.save(var_x, 'noise_data.pt')
         torch.save(var_y, 'normal_data.pt')
         torch.save(var_l, 'label_data.pt')
-        break
+        quit()
 
 
 main()
