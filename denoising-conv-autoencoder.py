@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import time
 import random
 from torch.utils.data import Dataset, DataLoader
+from scipy.signal import hilbert
 
 torch.manual_seed(1)    # reproducible
 
@@ -60,24 +61,33 @@ def main():
     # Define optimizer (must be done after moving the model to the GPU)
     optimizer = torch.optim.Adam(autoencoder.parameters(), lr=LR)
     # Criterion for the conv. autoencoder
-    criterion = nn.MSELoss().to(device)
+    criterion1 = nn.MSELoss().to(device)
+    criterion2 = nn.CrossEntropyLoss().to(device)
 
     # Training loop
     for epoch in range(EPOCH):
         # To calculate mean loss and calculate time per epoch
-        epoch_loss = []
+        autoencoder_loss = []
+        classifier_loss = []
         start = time.time()
         # Loop through batches
-        for b_x, b_y in zip(batch_x, batch_y):
-            encoded, decoded = autoencoder(b_x)
+        for b_x, b_y, b_z in zip(batch_x, batch_y, batch_z):
+            encoded, decoded, cls = autoencoder(b_x)
 
-            loss = criterion(decoded, b_y)  # mean square error
-            optimizer.zero_grad()           # clear gradients for this training step
-            loss.backward()                 # backpropagation, compute gradients
-            optimizer.step()                # apply gradients
+            optimizer.zero_grad()               # clear gradients for this training step
+            # Autoencoder batch loss
+            loss1 = criterion1(decoded, b_y)    # mean square error
+            # Classifier batch loss
+            loss2 = criterion2(cls, b_z)
+            loss3 = (1 * loss1) + (10 * loss2)
+            loss3.backward()                    # backpropagation, compute gradients
+            optimizer.step()                    # apply gradients
 
-            epoch_loss.append(loss.to(cpu).item())  # used to calculate the epoch mean loss
-        print(f'Epoch {epoch}, mean loss: {np.mean(np.array(epoch_loss))}, time: {time.time() - start}')
+            autoencoder_loss.append(loss1.to(cpu).item())    # used to calculate the autoencoder epoch mean loss
+            classifier_loss.append(loss2.to(cpu).item())     # used to calculate the classifier epoch mean loss
+
+        print(f'Autoencoder {epoch}, mean loss: {np.mean(np.array(autoencoder_loss))}, time: {time.time() - start}')
+        print(f' Classifier {epoch}, mean loss: {np.mean(np.array(classifier_loss))}, time: {time.time() - start}')
 
     # # First N_TEST_IMG images for visualization
     batch_numb = random.randint(0, len(batch_x))
@@ -90,7 +100,7 @@ def main():
         autoencoder = autoencoder.eval()
 
         # Encode and decode view_data to visualize the outcome
-        _, decoded_data = autoencoder(view_data.to(device))
+        encoded_data, decoded_data, classf_data = autoencoder(view_data.to(device))
         decoded_data = decoded_data.to(cpu)
 
         # initialize figure
@@ -126,19 +136,21 @@ class ConvAutoEncoder(nn.Module):
         self.convEncoder = nn.Sequential(
             # In this case output = [(28 + 2 * 1 - 5) / 1] + 1 = 26
             # Input [128, 1, 28, 28]
-            nn.Conv2d(in_channels=1, out_channels=n_features, kernel_size=4, stride=2, padding=3),
+            nn.Conv2d(in_channels=1, out_channels=n_features, kernel_size=4, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(n_features),
             nn.ReLU(),
             # nn.MaxPool2d(kernel_size=2),
             # Output [128, features_e, 16, 16]
 
-            nn.Conv2d(in_channels=n_features, out_channels=n_features * 2, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(in_channels=n_features, out_channels=n_features * 2, kernel_size=4, stride=2, padding=1,
+                      bias=False),
             nn.BatchNorm2d(n_features * 2),
             nn.ReLU(),
             # nn.MaxPool2d(kernel_size=2),
             # Output [128, features_e * 2, 8, 8]
 
-            nn.Conv2d(in_channels=n_features * 2, out_channels=n_features * 4, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(in_channels=n_features * 2, out_channels=n_features * 4, kernel_size=4, stride=2, padding=1,
+                      bias=False),
             nn.BatchNorm2d(n_features * 4),
             nn.ReLU()
             # nn.MaxPool2d(kernel_size=2),
@@ -147,12 +159,12 @@ class ConvAutoEncoder(nn.Module):
 
         self.convDecoder = nn.Sequential(
             # Input [128, features_e * 4, 4, 4]
-            nn.ConvTranspose2d(n_features * 4, n_features * 2, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(n_features * 4, n_features * 2, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(n_features * 2),
             nn.ReLU(),
             # Output [128, features_e * 2, 8, 8]
 
-            nn.ConvTranspose2d(n_features * 2, n_features, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(n_features * 2, n_features, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(n_features),
             nn.ReLU(),
             # Output [128, 10, 16, 16]
@@ -179,33 +191,36 @@ class ConvAutoEncoder3x(nn.Module):
         # Conv network
         # Output size of each convolutional layer = [(in_channel + 2 * padding - kernel_size) / stride] + 1
         self.convEncoder = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=n_features, kernel_size=4, stride=2, padding=3),
+            nn.Conv2d(in_channels=1, out_channels=n_features, kernel_size=4, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(n_features),
             nn.ReLU(),
 
-            nn.Conv2d(in_channels=n_features, out_channels=n_features * 2, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(in_channels=n_features, out_channels=n_features * 2, kernel_size=4, stride=2, padding=1,
+                      bias=False),
             nn.BatchNorm2d(n_features * 2),
             nn.ReLU(),
 
-            nn.Conv2d(in_channels=n_features * 2, out_channels=n_features * 3, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(in_channels=n_features * 2, out_channels=n_features * 3, kernel_size=4, stride=2, padding=1,
+                      bias=False),
             nn.BatchNorm2d(n_features * 3),
             nn.ReLU(),
 
-            nn.Conv2d(in_channels=n_features * 3, out_channels=n_features * 4, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(in_channels=n_features * 3, out_channels=n_features * 4, kernel_size=4, stride=2, padding=1,
+                      bias=False),
             nn.BatchNorm2d(n_features * 4),
             nn.ReLU()
         )
 
         self.convDecoder = nn.Sequential(
-            nn.ConvTranspose2d(n_features * 4, n_features * 3, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(n_features * 4, n_features * 3, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(n_features * 3),
             nn.ReLU(),
 
-            nn.ConvTranspose2d(n_features * 3, n_features * 2, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(n_features * 3, n_features * 2, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(n_features * 2),
             nn.ReLU(),
 
-            nn.ConvTranspose2d(n_features * 2, n_features, kernel_size=4, stride=2, padding=1),
+            nn.ConvTranspose2d(n_features * 2, n_features, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(n_features),
             nn.ReLU(),
 
@@ -213,12 +228,24 @@ class ConvAutoEncoder3x(nn.Module):
             nn.Sigmoid()
         )
 
+        self.classifier = nn.Sequential(
+            nn.Linear(176, 1024),
+            nn.Dropout(0.5),
+            nn.ReLU(),
+
+            nn.Linear(1024, 10),
+            nn.LogSoftmax(dim=1)
+        )
+
     def forward(self, x):
+        # Autoencoder part
         conv_encoded = self.convEncoder(x)
         conv_decoded = self.convDecoder(conv_encoded)
+        # Classifier part
+        # print(f'# input dimensions for the linear layer {conv_encoded.view(conv_encoded.shape[0], -1).shape}')
+        cls = self.classifier(conv_encoded.view(conv_encoded.shape[0], -1))
 
-        # decoded = self.decoder(encoded)
-        return conv_encoded, conv_decoded
+        return conv_encoded, conv_decoded, cls
 
 
 class NoisyDataset(Dataset):
@@ -250,6 +277,23 @@ def plot_one(data):
     data = data.view(28, 28)
     plt.imshow(data, cmap='gray')
     plt.title("Figure")
+    plt.show()
+
+
+def hilbert_transform():
+    dt = 0.0001
+    t = np.arange(0, 0.1, dt)
+    x = (1 + np.cos(2 * np.pi * 50 * t)) * np.cos(2 * np.pi * 1000 * t)
+    plt.plot(x)
+    plt.show()
+
+    h = abs(hilbert(x))
+    plt.plot(h)
+    plt.show()
+
+    x = x + 1
+    h = abs(hilbert(x))
+    plt.plot(h)
     plt.show()
 
 
