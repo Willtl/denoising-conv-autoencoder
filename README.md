@@ -19,3 +19,6 @@ Denoising convolutional autoencoder for the MNIST handwritten digit database.
 | Original      | ![](figures/ori3.png)   |
 | Noisy         | ![](figures/noi3.png)   | 
 | Decoded       | ![](figures/dec3.png)   | 
+
+
+## To-Do

@@ -13,11 +13,13 @@ class ConvAutoEncoder(nn.Module):
             # In this case output = [(28 + 2 * 1 - 5) / 1] + 1 = 26
             # Input [128, 1, 28, 28]
             nn.Conv2d(in_channels=1, out_channels=16, kernel_size=4, stride=2, padding=3),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             # nn.MaxPool2d(kernel_size=2),
             # Output [128, features_e, 16, 16]
 
             nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             # nn.MaxPool2d(kernel_size=2),
             # Output [128, features_e * 2, 8, 8]
@@ -31,10 +33,12 @@ class ConvAutoEncoder(nn.Module):
         self.convDecoder = nn.Sequential(
             # Input [128, features_e * 4, 4, 4]
             nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             # Output [128, features_e * 2, 8, 8]
 
             nn.ConvTranspose2d(32, 16, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             # Output [128, 10, 16, 16]
 
@@ -45,7 +49,7 @@ class ConvAutoEncoder(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Linear(1024, 1024),
-            nn.Dropout(0.5),
+            nn.Dropout(0.25),
             nn.ReLU(),
 
             nn.Linear(1024, 10),
