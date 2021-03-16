@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.utils.data as Data
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 from model1 import ConvAutoEncoder as ConvAE1
@@ -165,11 +166,12 @@ def main(args):
     # Criterion for the classifier
     criterion2 = nn.NLLLoss().to(device)
     # Learning rate scheduling
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
+    # scheduler = StepLR(optimizer, step_size=1, gamma=0.7, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
     # Plotting loss and accuracy before training
     validate(args, model, device, valid_loader, criterion1, criterion2)
     # Training loop
-    best_accuracy = 0
+    best_loss, loss_counter, best_accuracy = float("inf"), 0, 0
     for epoch in range(1, args.epochs + 1):
         print(f'Current learning rate ' + str(optimizer.state_dict()['param_groups'][0]['lr']))
         train(args, model, device, train_loader, optimizer, epoch, criterion1, criterion2)
@@ -179,12 +181,20 @@ def main(args):
             bkp_model.load_state_dict(model.state_dict())
             best_accuracy = accuracy
         # Adjust learning rate
-        scheduler.step()
+        scheduler.step(val_loss)
+        # Stop the training if loss_counter is higher than args.max_epochs
+        if best_loss > val_loss:
+            best_loss = val_loss
+            loss_counter = 0
+        else:
+            loss_counter += 1
+            print(f'{loss_counter} epochs without improving best loss {best_loss}')
+            if loss_counter > args.max_epochs:
+                break
 
     # Restore the best parameters
     model.load_state_dict(bkp_model.state_dict())
     validate(args, model, device, valid_loader, criterion1, criterion2)
-
     # Plot denoised images
     if args.denoise_images > 0:
         denoise(args, model, valid_loader)
@@ -200,22 +210,24 @@ if __name__ == '__main__':
     NOISE_PROB = 0.25
 
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--epochs', type=int, default=10,
-                        help='number of epochs to train (default: 14)')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='number of epochs to train (default: 100)')
+    parser.add_argument('--max-epochs', type=int, default=10,
+                        help='stop training after max-epochs without improvement')
     parser.add_argument('--batch-size', type=int, default=64,
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=300,
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--lr', type=float, default=0.001,
-                        help='learning rate (default: 1.0)')
+                        help='learning rate (default: 0.001)')
     parser.add_argument('--seed', type=int, default=1,
                         help='random seed (default: 1)')
     parser.add_argument('--log-epoch', action='store_true', default=True,
-                        help='for logging mean loss after each epoch')
-    parser.add_argument('--log-batch-interval', type=int, default=20,
-                        help='how many batches to wait before logging training status')
-    parser.add_argument('--denoise-images', type=int, default=20,
-                        help='how many images will be visualized at the end of training')
+                        help='log mean loss after each epoch')
+    parser.add_argument('--log-batch-interval', type=int, default=10,
+                        help='log training status every log-batch-interval (default: 10)')
+    parser.add_argument('--denoise-images', type=int, default=0,
+                        help='display log-batch-interval denoised images at the end (default: 0)')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
     parser.add_argument('--create-noisy', action='store_true', default=False,
