@@ -13,7 +13,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 from model1 import ConvAutoEncoder as ConvAE1
-from noisy_dataset import NoisyDataset, create_noisy_dataset
+from model3 import ConvAutoEncoder as ConvAE3
+from gen_noisy_data import NoisyDataset, create_noisy_dataset
 
 
 def train(args, model, device, train_loader, optimizer, epoch, criterion1, criterion2):
@@ -22,13 +23,13 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
     start = time.time()
     for batch_idx, (b_x, b_y, b_z) in enumerate(train_loader):
         b_x, b_y, b_z = b_x.to(device), b_y.to(device), b_z.to(device)
-        optimizer.zero_grad()  # clear gradients for this training step
+        optimizer.zero_grad()   # clear gradients for this training step
         encoded, decoded, cls = model(b_x)  # Feed data
-        loss1 = criterion1(decoded, b_y)  # reconstruction loss (mean square error)
-        loss2 = criterion2(cls, b_z)  # classifier loss (negative log likelihood)
-        loss3 = (0.1 * loss1) + (1.0 * loss2)  # combined loss (reconstruction + classifier)
-        loss3.backward()  # backpropagation, compute gradients
-        optimizer.step()  # apply gradients
+        loss1 = criterion1(decoded, b_y)    # reconstruction loss (mean square error)
+        loss2 = criterion2(cls, b_z)    # classifier loss (negative log likelihood)
+        loss3 = (0.1 * loss1) + (1.0 * loss2)   # combined loss (reconstruction + classifier)
+        loss3.backward()    # backpropagation, compute gradients
+        optimizer.step()    # apply gradients
 
         if args.log_epoch:
             mean_loss1.append(loss1.to(torch.device("cpu")).item())  # used to calculate the autoencoder epoch mean loss
@@ -56,9 +57,9 @@ def validate(args, model, device, valid_loader, criterion1, criterion2):
             b_x, b_y, b_z = b_x.to(device), b_y.to(device), b_z.to(device)
             encoded, decoded, cls = model(b_x)
             loss2 = criterion2(cls, b_z)  # classifier loss (negative log likelihood)
-
             val_loss += loss2.item()  # sum up classifier batch loss
-            pred = cls.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            # get the index of the max log-probability
+            pred = cls.argmax(dim=1, keepdim=True)
             correct += pred.eq(b_z.view_as(pred)).sum().item()
 
     val_loss /= len(valid_loader.dataset)
@@ -157,7 +158,7 @@ def main(args):
     test_loader = DataLoader(dataset=test_set, batch_size=args.test_batch_size, shuffle=True, pin_memory=True)
 
     # Load model and move it to the GPU
-    model, bkp_model = ConvAE1(), ConvAE1()
+    model, bkp_model = ConvAE3(), ConvAE3()
     model.to(device)
     # Define optimizer (must be done after moving the model to the GPU)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
@@ -165,6 +166,7 @@ def main(args):
     criterion1 = nn.MSELoss().to(device)
     # Criterion for the classifier
     criterion2 = nn.NLLLoss().to(device)
+    # criterion2 = nn.CrossEntropyLoss().to(device)
     # Learning rate scheduling
     # scheduler = StepLR(optimizer, step_size=1, gamma=0.7, verbose=True)
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
@@ -188,9 +190,9 @@ def main(args):
             loss_counter = 0
         else:
             loss_counter += 1
-            print(f'{loss_counter} epochs without improving best loss {best_loss}')
-            if loss_counter > args.max_epochs:
+            if loss_counter == args.max_epochs:
                 break
+            print(f'{loss_counter} epochs without improving best loss {best_loss}')
 
     # Restore the best parameters
     model.load_state_dict(bkp_model.state_dict())
