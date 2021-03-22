@@ -38,29 +38,29 @@ class ConvAutoEncoder(nn.Module):
 
         self.convDecoder = nn.Sequential(
             # [batch_size, 128, 7, 7]
-            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             # [batch_size, 64, 7, 7]
             nn.Upsample(scale_factor=2),
             # nn.ConvTranspose2d(64, 64, kernel_size=4, stride=2, padding=1),
             # [batch_size, 64, 14, 14]
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             # [batch_size, 64, 7, 7]
-            nn.Conv2d(64, 32, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             # [batch_size, 32, 14, 14]
             nn.Upsample(scale_factor=2),
             # nn.ConvTranspose2d(32, 32, kernel_size=4, stride=2, padding=1),
             # [batch_size, 32, 28, 28]
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose2d(32, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             # [batch_size, 32, 28, 28]
-            nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose2d(32, 1, kernel_size=3, stride=1, padding=1),
             nn.Sigmoid()
         )
 
