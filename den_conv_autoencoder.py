@@ -11,10 +11,13 @@ from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
+import swats
 
-from model1 import ConvAutoEncoder as ConvAE1
 from model3 import ConvAutoEncoder as ConvAE3
-from gen_noisy_data import NoisyDataset, create_noisy_dataset
+from model4 import ConvAutoEncoder as ConvAE4
+from model5 import ConvAutoEncoder as ConvAE5
+from model6 import ConvAutoEncoder as ConvAE6
+from noisy import NoisyDataset, create_noisy_dataset
 
 
 def train(args, model, device, train_loader, optimizer, epoch, criterion1, criterion2):
@@ -91,6 +94,7 @@ def test(model, device, test_loader):
 
 
 def denoise(args, model, data_loader):
+    """ Visualize the output of the decoder, the denoised images """
     # Define GPU and CPU devices
     cpu = torch.device("cpu")
     gpu = torch.device("cuda:0")
@@ -132,13 +136,14 @@ def denoise(args, model, data_loader):
 
 
 def load_data(set_type):
+    """ Load datasets from file"""
     # Load noise, normal, and labels
-    noise_data = torch.load('noisy-mnist/0.25/' + set_type + '/noisy.pt')
+    noise_data = torch.load('noisy-mnist/0.75/' + set_type + '/noisy.pt')
     # index = random.randint(0, 60000)
     # plot_one(noise_data[index + 3])
-    normal_data = torch.load('noisy-mnist/0.25/' + set_type + '/normal.pt')
+    normal_data = torch.load('noisy-mnist/0.75/' + set_type + '/normal.pt')
     # plot_one(normal_data[index + 3])
-    label_data = torch.load('noisy-mnist/0.25/' + set_type + '/label.pt')
+    label_data = torch.load('noisy-mnist/0.75/' + set_type + '/label.pt')
 
     # Create training and validation sets
     return NoisyDataset(noise_data, normal_data, label_data)
@@ -158,10 +163,13 @@ def main(args):
     test_loader = DataLoader(dataset=test_set, batch_size=args.test_batch_size, shuffle=True, pin_memory=True)
 
     # Load model and move it to the GPU
-    model, bkp_model = ConvAE3(), ConvAE3()
+    # model, bkp_model = ConvAE3(), ConvAE3()     # 69.55 %
+    # model, bkp_model = ConvAE4(), ConvAE4()     # 69.64 %
+    # model, bkp_model = ConvAE5(), ConvAE5()   # 69.71 %
+    model, bkp_model = ConvAE6(), ConvAE6()   # 70.55 %
     model.to(device)
     # Define optimizer (must be done after moving the model to the GPU)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)   # 0.9903
     # Criterion for the autoencoder
     criterion1 = nn.MSELoss().to(device)
     # Criterion for the classifier
@@ -169,7 +177,7 @@ def main(args):
     # criterion2 = nn.CrossEntropyLoss().to(device)
     # Learning rate scheduling
     # scheduler = StepLR(optimizer, step_size=1, gamma=0.7, verbose=True)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)  # , min_lr=1e-5)
     # Plotting loss and accuracy before training
     validate(args, model, device, valid_loader, criterion1, criterion2)
     # Training loop
@@ -196,6 +204,7 @@ def main(args):
 
     # Restore the best parameters
     model.load_state_dict(bkp_model.state_dict())
+
     validate(args, model, device, valid_loader, criterion1, criterion2)
     # Plot denoised images
     if args.denoise_images > 0:
@@ -204,13 +213,8 @@ def main(args):
     test(model, device, test_loader)
 
 
-if __name__ == '__main__':
-    # Training settings
-
-    # Hyper Parameters
-    CREATE_NOISY_MNIST = False
-    NOISE_PROB = 0.25
-
+def parse_args():
+    """ Parse arguments """
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     parser.add_argument('--epochs', type=int, default=100,
                         help='number of epochs to train (default: 100)')
@@ -228,7 +232,7 @@ if __name__ == '__main__':
                         help='log mean loss after each epoch')
     parser.add_argument('--log-batch-interval', type=int, default=10,
                         help='log training status every log-batch-interval (default: 10)')
-    parser.add_argument('--denoise-images', type=int, default=0,
+    parser.add_argument('--denoise-images', type=int, default=20,
                         help='display log-batch-interval denoised images at the end (default: 0)')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
@@ -236,8 +240,11 @@ if __name__ == '__main__':
                         help='For Saving the current Model')
     parser.add_argument('--noise-prob', type=float, default=0.50,
                         help='probability of noise to each pixel (default: 0.5)')
+    return parser.parse_args()
 
-    args = parser.parse_args()
+
+if __name__ == '__main__':
+    args = parse_args()
     # Fix random seeds for reproducibility
     if args.seed != -1:
         torch.manual_seed(args.seed)
