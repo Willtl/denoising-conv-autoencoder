@@ -30,19 +30,29 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
         encoded, decoded, cls = model(b_x)  # Feed data
         loss1 = criterion1(decoded, b_y)    # reconstruction loss (mean square error)
         loss2 = criterion2(cls, b_z)    # classifier loss (negative log likelihood)
-        loss3 = (0.1 * loss1) + (1.0 * loss2)   # combined loss (reconstruction + classifier)
+        # Calculate L1 loss penalty
+        if args.l1:
+            l1_reg = torch.tensor(0., requires_grad=True).to(device)
+            for name, param in model.named_parameters():
+                if 'weight' in name:
+                    l1_reg = l1_reg + torch.norm(param, 1)
+            loss3 = (0.1 * loss1) + (1.0 * loss2) + (1e-5 * l1_reg)  # combined loss (reconstruction + classifier)
+        else:
+            loss3 = (0.1 * loss1) + (1.0 * loss2)   # combined loss (reconstruction + classifier)
         loss3.backward()    # backpropagation, compute gradients
         optimizer.step()    # apply gradients
+
+        if batch_idx % args.log_batch_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(b_x), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader), loss3.item()))
 
         if args.log_epoch:
             mean_loss1.append(loss1.to(torch.device("cpu")).item())  # used to calculate the autoencoder epoch mean loss
             mean_loss2.append(loss2.to(torch.device("cpu")).item())  # used to calculate the classifier epoch mean loss
             mean_loss3.append(loss3.to(torch.device("cpu")).item())  # used to calculate the weighted mean loss
 
-        if batch_idx % args.log_batch_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(b_x), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss3.item()))
+
 
     if args.log_epoch:
         elapsed_time = time.time() - start
@@ -166,10 +176,12 @@ def main(args):
     # model, bkp_model = ConvAE3(), ConvAE3()     # 69.55 %
     # model, bkp_model = ConvAE4(), ConvAE4()     # 69.64 %
     # model, bkp_model = ConvAE5(), ConvAE5()   # 69.71 %
-    model, bkp_model = ConvAE6(), ConvAE6()   # 70.55 %
+    # model, bkp_model = ConvAE6(), ConvAE6()   # 70.55 %
+    model, bkp_model = ConvAE6(), ConvAE6()   # 0.713 with xavier init and L2 (1e-5), # 0.7149 with xavier and L1
+    model.init_xavier(verbose=True)
     model.to(device)
     # Define optimizer (must be done after moving the model to the GPU)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)   # 0.9903
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)   # , weight_decay=1e-5)
     # Criterion for the autoencoder
     criterion1 = nn.MSELoss().to(device)
     # Criterion for the classifier
@@ -216,28 +228,20 @@ def main(args):
 def parse_args():
     """ Parse arguments """
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--epochs', type=int, default=100,
-                        help='number of epochs to train (default: 100)')
-    parser.add_argument('--max-epochs', type=int, default=10,
-                        help='stop training after max-epochs without improvement')
-    parser.add_argument('--batch-size', type=int, default=64,
-                        help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=300,
-                        help='input batch size for testing (default: 1000)')
-    parser.add_argument('--lr', type=float, default=0.001,
-                        help='learning rate (default: 0.001)')
-    parser.add_argument('--seed', type=int, default=1,
-                        help='random seed (default: 1)')
-    parser.add_argument('--log-epoch', action='store_true', default=True,
-                        help='log mean loss after each epoch')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train (default: 100)')
+    parser.add_argument('--max-epochs', type=int, default=10, help='stop training after max-epochs without improvement')
+    parser.add_argument('--batch-size', type=int, default=64, help='input batch size for training (default: 64)')
+    parser.add_argument('--test-batch-size', type=int, default=300, help='input batch size for testing (default: 1000)')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate (default: 0.001)')
+    parser.add_argument('--l1', default=True, help='use L1 regularization')
+    parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
+    parser.add_argument('--log-epoch', default=True, help='log mean loss after each epoch')
     parser.add_argument('--log-batch-interval', type=int, default=10,
                         help='log training status every log-batch-interval (default: 10)')
     parser.add_argument('--denoise-images', type=int, default=20,
                         help='display log-batch-interval denoised images at the end (default: 0)')
-    parser.add_argument('--save-model', action='store_true', default=False,
-                        help='For Saving the current Model')
-    parser.add_argument('--create-noisy', action='store_true', default=False,
-                        help='For Saving the current Model')
+    parser.add_argument('--save-model', default=False, help='For Saving the current Model')
+    parser.add_argument('--create-noisy', default=False, help='For Saving the current Model')
     parser.add_argument('--noise-prob', type=float, default=0.50,
                         help='probability of noise to each pixel (default: 0.5)')
     return parser.parse_args()

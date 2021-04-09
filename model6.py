@@ -25,7 +25,6 @@ class ConvAutoEncoder(nn.Module):
         # Normalization in between layers
         self.norm32_1 = nn.BatchNorm2d(32)
         self.norm32_2 = nn.BatchNorm2d(32)
-        
         self.norm64_1 = nn.BatchNorm2d(64)
         self.norm64_2 = nn.BatchNorm2d(64)
         self.norm64_3 = nn.BatchNorm2d(64)
@@ -55,42 +54,53 @@ class ConvAutoEncoder(nn.Module):
         out_e4 = self.relu(self.norm128_1(e4))
         e5 = self.e5(out_e4)
         out_e5 = self.relu(self.norm256(e5))
-        # print('e1', out_e1.shape)
-        # print('e2', out_e2.shape)
-        # print('e3', out_e3.shape)
-        # print('e4', out_e4.shape)
-        # print('e5', out_e5.shape)
 
         # Decoding
         d1 = self.d1(out_e5)
         out_d1 = torch.add(d1, e4)
         out_d1 = self.relu(self.norm128_2(out_d1))
-
         d2 = self.d2(out_d1)
         out_d2 = torch.add(d2, e3)
         out_d2 = self.relu(self.norm64_3(out_d2))
-
         d3 = self.d3(out_d2)
         out_d3 = torch.add(d3, e2)
         out_d3 = self.relu(self.norm64_4(out_d3))
-
         d4 = self.d4(out_d3)
         out_d4 = torch.add(d4, e1)
         out_d4 = self.relu(self.norm32_2(out_d4))
-
         d5 = self.d5(out_d4)
         out_d4 = torch.add(d5, x)
         out_d5 = self.sigmoid(out_d4)
-        # print('d1', out_d1.shape)
-        # print('d2', out_d2.shape)
-        # print('d3', out_d3.shape)
-        # print('d4', out_d4.shape)
-        # print('d5', out_d5.shape)
-        # quit()
-        # cat1 = torch.add(x, out_d5)
-        # print('cat1', cat1.shape)
 
         # Classifier
         # print(f'# input dimensions for the linear layer {conv_encoded.view(conv_encoded.shape[0], -1).shape}')
         cls = self.classifier(out_e5.view(out_e5.shape[0], -1))
         return out_e5, out_d5, cls
+
+    def init_xavier(self, verbose=False):
+        with torch.no_grad():
+            # Init encoder
+            nn.init.xavier_normal_(self.e1.weight)
+            nn.init.zeros_(self.e1.bias)
+            nn.init.xavier_normal_(self.e2.weight)
+            nn.init.zeros_(self.e2.bias)
+            nn.init.xavier_normal_(self.e3.weight)
+            nn.init.zeros_(self.e3.bias)
+            nn.init.xavier_normal_(self.e4.weight)
+            nn.init.zeros_(self.e4.bias)
+            nn.init.xavier_normal_(self.e5.weight)
+            nn.init.zeros_(self.e5.bias)
+            # Init decoder
+            nn.init.xavier_normal_(self.d1.weight)
+            nn.init.zeros_(self.d1.bias)
+            nn.init.xavier_normal_(self.d2.weight)
+            nn.init.zeros_(self.d2.bias)
+            nn.init.xavier_normal_(self.d3.weight)
+            nn.init.zeros_(self.d3.bias)
+            nn.init.xavier_normal_(self.d4.weight)
+            nn.init.zeros_(self.d4.bias)
+            nn.init.xavier_normal_(self.d5.weight)
+            nn.init.zeros_(self.d5.bias)
+
+            if verbose:
+                print("Parameters initialized using xavier initialization")
