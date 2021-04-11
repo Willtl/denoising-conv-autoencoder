@@ -32,7 +32,10 @@ class ConvAutoEncoder(nn.Module):
         self.norm128_1 = nn.BatchNorm2d(128)
         self.norm128_2 = nn.BatchNorm2d(128)
         self.norm256 = nn.BatchNorm2d(256)
-
+        # Array of autoencoder's layers
+        self.autoencoder = [self.e1, self.e2, self.e3, self.e4, self.e5, self.e2,
+                            self.d1, self.d2, self.d3, self.d4, self.d5, self.d6]
+        # Classifier
         self.classifier = nn.Sequential(
             nn.Linear(9216, 1024),
             nn.Dropout(0.25),
@@ -104,3 +107,4 @@ class ConvAutoEncoder(nn.Module):
 
             if verbose:
                 print("Parameters initialized using xavier initialization")
+

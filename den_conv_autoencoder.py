@@ -36,7 +36,7 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
             for name, param in model.named_parameters():
                 if 'weight' in name:
                     l1_reg = l1_reg + torch.norm(param, 1)
-            loss3 = (0.1 * loss1) + (1.0 * loss2) + (1e-5 * l1_reg)  # combined loss (reconstruction + classifier)
+            loss3 = (0.15 * loss1) + (1.0 * loss2) + (1e-5 * l1_reg)  # combined loss (reconstruction + classifier) + l1
         else:
             loss3 = (0.1 * loss1) + (1.0 * loss2)   # combined loss (reconstruction + classifier)
         loss3.backward()    # backpropagation, compute gradients
@@ -51,8 +51,6 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
             mean_loss1.append(loss1.to(torch.device("cpu")).item())  # used to calculate the autoencoder epoch mean loss
             mean_loss2.append(loss2.to(torch.device("cpu")).item())  # used to calculate the classifier epoch mean loss
             mean_loss3.append(loss3.to(torch.device("cpu")).item())  # used to calculate the weighted mean loss
-
-
 
     if args.log_epoch:
         elapsed_time = time.time() - start
@@ -148,12 +146,12 @@ def denoise(args, model, data_loader):
 def load_data(set_type):
     """ Load datasets from file"""
     # Load noise, normal, and labels
-    noise_data = torch.load('noisy-mnist/0.75/' + set_type + '/noisy.pt')
+    noise_data = torch.load('noisy-mnist/0/' + set_type + '/noisy.pt')
     # index = random.randint(0, 60000)
     # plot_one(noise_data[index + 3])
-    normal_data = torch.load('noisy-mnist/0.75/' + set_type + '/normal.pt')
+    normal_data = torch.load('noisy-mnist/0/' + set_type + '/normal.pt')
     # plot_one(normal_data[index + 3])
-    label_data = torch.load('noisy-mnist/0.75/' + set_type + '/label.pt')
+    label_data = torch.load('noisy-mnist/0/' + set_type + '/label.pt')
 
     # Create training and validation sets
     return NoisyDataset(noise_data, normal_data, label_data)

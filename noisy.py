@@ -51,17 +51,18 @@ def create_noisy_dataset(noise_prob):
         var_y = Variable(torch.clone(x))
         var_l = Variable(y)
         # Add noise to the data
-        for i in range(60000):
-            print(i)
-            for j in range(28):
-                for k in range(28):
-                    r = random.random()
-                    if r <= noise_prob / 3:
-                        var_x[i][0][j][k] = 0.0
-                    elif r <= noise_prob / 2:
-                        var_x[i][0][j][k] = 1.0
-                    elif r <= noise_prob:
-                        var_x[i][0][j][k] = random.random()
+        if noise_prob > 0.0:
+            for i in range(60000):
+                print(i)
+                for j in range(28):
+                    for k in range(28):
+                        r = random.random()
+                        if r <= noise_prob / 3:
+                            var_x[i][0][j][k] = 0.0
+                        elif r <= noise_prob / 2:
+                            var_x[i][0][j][k] = 1.0
+                        elif r <= noise_prob:
+                            var_x[i][0][j][k] = random.random()
         torch.save(var_x, f'noisy-mnist/{noise_prob}/train/noisy.pt')
         torch.save(var_y, f'noisy-mnist/{noise_prob}/train/normal.pt')
         torch.save(var_l, f'noisy-mnist/{noise_prob}/train/label.pt')
@@ -74,17 +75,18 @@ def create_noisy_dataset(noise_prob):
         var_y = Variable(torch.clone(x))
         var_l = Variable(y)
         # Add noise to the data
-        for i in range(10000):
-            print(i)
-            for j in range(28):
-                for k in range(28):
-                    r = random.random()
-                    if r <= noise_prob / 3:
-                        var_x[i][0][j][k] = 0.0
-                    elif r <= noise_prob / 2:
-                        var_x[i][0][j][k] = 1.0
-                    elif r <= noise_prob:
-                        var_x[i][0][j][k] = random.random()
+        if noise_prob > 0.0:
+            for i in range(10000):
+                print(i)
+                for j in range(28):
+                    for k in range(28):
+                        r = random.random()
+                        if r <= noise_prob / 3:
+                            var_x[i][0][j][k] = 0.0
+                        elif r <= noise_prob / 2:
+                            var_x[i][0][j][k] = 1.0
+                        elif r <= noise_prob:
+                            var_x[i][0][j][k] = random.random()
         torch.save(var_x, f'noisy-mnist/{noise_prob}/test/noisy.pt')
         torch.save(var_y, f'noisy-mnist/{noise_prob}/test/normal.pt')
         torch.save(var_l, f'noisy-mnist/{noise_prob}/test/label.pt')
