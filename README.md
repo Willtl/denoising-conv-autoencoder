@@ -1,6 +1,6 @@
 # denoising-conv-autoencoder
 
-Denoising convolutional autoencoder for the MNIST handwritten digit database.
+Denoising convolutional autoencoder and classifier for the MNIST handwritten digit database.
 
 * [Download](https://drive.google.com/file/d/16AUgKIYShhEpBGs2WGihy-P6veVG8rJU/view?usp=sharing) the noisy dataset and extract it inside project's folder 
   * Salt, pepper, and random noise is added to the MNIST handwritten digit database.
