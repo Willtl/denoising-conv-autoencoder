@@ -3,6 +3,7 @@ import torch.nn as nn
 
 
 class ConvAutoEncoder(nn.Module):
+    """ ResNet based """
     def __init__(self):
         # Initialize superclass
         super(ConvAutoEncoder, self).__init__()
@@ -19,10 +20,10 @@ class ConvAutoEncoder(nn.Module):
         self.d4 = nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=3, stride=2, padding=0,
                                      output_padding=1)
         self.d5 = nn.ConvTranspose2d(in_channels=32, out_channels=1, kernel_size=3, stride=1, padding=1)
-        # Activation function
+        # Autoencoder activation functions
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
-        # Normalization in between layers
+        # Batch norm for convolutional layers
         self.norm32_1 = nn.BatchNorm2d(32)
         self.norm32_2 = nn.BatchNorm2d(32)
         self.norm64_1 = nn.BatchNorm2d(64)
@@ -34,15 +35,20 @@ class ConvAutoEncoder(nn.Module):
         self.norm256 = nn.BatchNorm2d(256)
         # Array of autoencoder's layers
         self.autoencoder = [self.e1, self.e2, self.e3, self.e4, self.e5, self.e2,
-                            self.d1, self.d2, self.d3, self.d4, self.d5, self.d6]
+                            self.d1, self.d2, self.d3, self.d4, self.d5]
         # Classifier
+        self.l1 = nn.Linear(9216, 1024)
+        self.l2 = nn.Linear(1024, 10)
+        self.drop = nn.Dropout(0.25)
+        self.lsoft = nn.LogSoftmax(dim=1)
+        """
         self.classifier = nn.Sequential(
             nn.Linear(9216, 1024),
             nn.Dropout(0.25),
             nn.ReLU(),
             nn.Linear(1024, 10),
             nn.LogSoftmax(dim=1)
-        )
+        )"""
 
     def forward(self, x):
         # Encoding
@@ -72,12 +78,15 @@ class ConvAutoEncoder(nn.Module):
         out_d4 = torch.add(d4, e1)
         out_d4 = self.relu(self.norm32_2(out_d4))
         d5 = self.d5(out_d4)
-        out_d4 = torch.add(d5, x)
-        out_d5 = self.sigmoid(out_d4)
+        out_d5 = torch.add(d5, x)
+        out_d5 = self.sigmoid(out_d5)
 
         # Classifier
         # print(f'# input dimensions for the linear layer {conv_encoded.view(conv_encoded.shape[0], -1).shape}')
-        cls = self.classifier(out_e5.view(out_e5.shape[0], -1))
+        """cls = self.classifier(out_e5.view(out_e5.shape[0], -1))"""
+        c1 = self.l1(out_e5.view(out_e5.shape[0], -1))
+        d1 = self.relu(self.drop(c1))
+        cls = self.lsoft(self.l2(d1))
         return out_e5, out_d5, cls
 
     def init_xavier(self, verbose=False):
@@ -104,6 +113,12 @@ class ConvAutoEncoder(nn.Module):
             nn.init.zeros_(self.d4.bias)
             nn.init.xavier_normal_(self.d5.weight)
             nn.init.zeros_(self.d5.bias)
+
+            # Init classifier
+            # nn.init.kaiming_normal_(self.l1.weight, nonlinearity='relu')
+            nn.init.zeros_(self.l1.bias)
+            # nn.init.kaiming_normal_(self.l2.weight, nonlinearity='relu')
+            nn.init.zeros_(self.l2.bias)
 
             if verbose:
                 print("Parameters initialized using xavier initialization")

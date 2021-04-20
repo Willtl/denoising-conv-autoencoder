@@ -8,14 +8,9 @@ import torch.backends.cudnn
 import torch.nn as nn
 import torch.utils.data as Data
 from torch.autograd import Variable
-from torch.optim.lr_scheduler import StepLR
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-import swats
 
-from model3 import ConvAutoEncoder as ConvAE3
-from model4 import ConvAutoEncoder as ConvAE4
-from model5 import ConvAutoEncoder as ConvAE5
 from model6 import ConvAutoEncoder as ConvAE6
 from noisy import NoisyDataset, create_noisy_dataset
 
@@ -29,16 +24,16 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
         optimizer.zero_grad()   # clear gradients for this training step
         encoded, decoded, cls = model(b_x)  # Feed data
         loss1 = criterion1(decoded, b_y)    # reconstruction loss (mean square error)
-        loss2 = criterion2(cls, b_z)    # classifier loss (negative log likelihood)
+        loss2 = criterion2(cls, b_z)        # classifier loss (negative log likelihood)
         # Calculate L1 loss penalty
         if args.l1:
             l1_reg = torch.tensor(0., requires_grad=True).to(device)
             for name, param in model.named_parameters():
                 if 'weight' in name:
                     l1_reg = l1_reg + torch.norm(param, 1)
-            loss3 = (0.15 * loss1) + (1.0 * loss2) + (1e-5 * l1_reg)  # combined loss (reconstruction + classifier) + l1
+            loss3 = (0.1 * loss1) + (1.0 * loss2) + (1e-5 * l1_reg)  # combined loss (reconstruction + classifier) + l1
         else:
-            loss3 = (0.1 * loss1) + (1.0 * loss2)   # combined loss (reconstruction + classifier)
+            loss3 = (0.1 * loss1) + (1.0 * loss2)                   # combined loss (reconstruction + classifier)
         loss3.backward()    # backpropagation, compute gradients
         optimizer.step()    # apply gradients
 
@@ -61,19 +56,22 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
 
 def validate(args, model, device, valid_loader, criterion1, criterion2):
     model.eval()
-    val_loss = 0
-    correct = 0
     with torch.no_grad():
+        val_loss = []
+        correct = 0
         for b_x, b_y, b_z in valid_loader:
             b_x, b_y, b_z = b_x.to(device), b_y.to(device), b_z.to(device)
             encoded, decoded, cls = model(b_x)
+            loss1 = criterion1(decoded, b_y)  # reconstruction loss (mean square error)
             loss2 = criterion2(cls, b_z)  # classifier loss (negative log likelihood)
-            val_loss += loss2.item()  # sum up classifier batch loss
+            loss3 = (0.1 * loss1) + (1.0 * loss2)
+            # val_loss += loss3.item()  # sum up loss
+            val_loss.append(loss3.item())
             # get the index of the max log-probability
             pred = cls.argmax(dim=1, keepdim=True)
             correct += pred.eq(b_z.view_as(pred)).sum().item()
 
-    val_loss /= len(valid_loader.dataset)
+    val_loss = np.mean(np.array(val_loss))
     accuracy = correct / len(valid_loader.dataset)
 
     print('\nValidation, average loss: {:.10f}, accuracy: {}/{} ({:.5f}%)\n'.format(
@@ -146,12 +144,12 @@ def denoise(args, model, data_loader):
 def load_data(set_type):
     """ Load datasets from file"""
     # Load noise, normal, and labels
-    noise_data = torch.load('noisy-mnist/0/' + set_type + '/noisy.pt')
+    noise_data = torch.load('noisy-mnist/0.75/' + set_type + '/noisy.pt')
     # index = random.randint(0, 60000)
     # plot_one(noise_data[index + 3])
-    normal_data = torch.load('noisy-mnist/0/' + set_type + '/normal.pt')
+    normal_data = torch.load('noisy-mnist/0.75/' + set_type + '/normal.pt')
     # plot_one(normal_data[index + 3])
-    label_data = torch.load('noisy-mnist/0/' + set_type + '/label.pt')
+    label_data = torch.load('noisy-mnist/0.75/' + set_type + '/label.pt')
 
     # Create training and validation sets
     return NoisyDataset(noise_data, normal_data, label_data)
@@ -175,7 +173,7 @@ def main(args):
     # model, bkp_model = ConvAE4(), ConvAE4()     # 69.64 %
     # model, bkp_model = ConvAE5(), ConvAE5()   # 69.71 %
     # model, bkp_model = ConvAE6(), ConvAE6()   # 70.55 %
-    model, bkp_model = ConvAE6(), ConvAE6()   # 0.713 with xavier init and L2 (1e-5), # 0.7149 with xavier and L1
+    model, bkp_model = ConvAE6(), ConvAE6()   # 0.713 with xavier init and L2 (1e-5), # 0.7155 with xavier and L1
     model.init_xavier(verbose=True)
     model.to(device)
     # Define optimizer (must be done after moving the model to the GPU)
@@ -213,9 +211,11 @@ def main(args):
             print(f'{loss_counter} epochs without improving best loss {best_loss}')
 
     # Restore the best parameters
+    print("Restoring model which lead to the best val. accuracy.")
     model.load_state_dict(bkp_model.state_dict())
-
+    print("Comparing val. accuracy with previous model.")
     validate(args, model, device, valid_loader, criterion1, criterion2)
+
     # Plot denoised images
     if args.denoise_images > 0:
         denoise(args, model, valid_loader)
