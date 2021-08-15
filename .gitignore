@@ -10,5 +10,4 @@ __pycache__/
 *$py.class
 /mnist/
 /noisy-mnist/
-/figures/
 /trained_models/

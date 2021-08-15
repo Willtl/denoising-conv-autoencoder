@@ -166,11 +166,14 @@ def load_data(set_type):
     """ Load datasets from file"""
     # Load noise, normal, and labels
     noise_data = torch.load('noisy-mnist/0.75/' + set_type + '/noisy.pt')
+
     # index = random.randint(0, 60000)
     # plot_one(noise_data[index + 3])
     normal_data = torch.load('noisy-mnist/0.75/' + set_type + '/normal.pt')
+
     # plot_one(normal_data[index + 3])
     label_data = torch.load('noisy-mnist/0.75/' + set_type + '/label.pt')
+
     # Create training and validation sets
     return NoisyDataset(noise_data, normal_data, label_data)
 
@@ -188,8 +191,11 @@ def main(args):
     test_loader = DataLoader(dataset=test_set, batch_size=args.test_batch_size, shuffle=True, pin_memory=True)
 
     # Instantiate models
-    model, bkp_model = Autoencoder(), Autoencoder()
-    # model, bkp_model = UnetAutoencoder(), UnetAutoencoder()
+    if args.model_name == 'unet':
+        model, bkp_model = UnetAutoencoder(), UnetAutoencoder()
+    else:
+        model, bkp_model = Autoencoder(), Autoencoder()
+
     init_weights(model, init_type='normal')
     model.to(device)
 
@@ -263,8 +269,11 @@ def main(args):
 def parse_args():
     """ Parse arguments """
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
+    # Model name
+    parser.add_argument('--model-name', type=str, default='unet', help='[normal | unet] (default: unet)')
+
     # Random params
-    parser.add_argument('--seed', type=int, default=1, help='random seed (default: 1)')
+    parser.add_argument('--seed', type=int, default=-1, help='random seed (default: 1)')
 
     # Training params
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 100)')
@@ -272,7 +281,7 @@ def parse_args():
     parser.add_argument('--batch-size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--max-epochs', type=int, default=10, help='stop training after max-epochs without improvement')
     parser.add_argument('--test-batch-size', type=int, default=300, help='input batch size for testing (default: 1000)')
-    parser.add_argument('--l1', default=True, help='use L1 regularization')
+    parser.add_argument('--l1', default=False, help='use L1 regularization')
     parser.add_argument('--save-model', default=False, help='For Saving the current Model')
 
     # Logging params
@@ -307,6 +316,7 @@ def set_performance_mode():
 
 if __name__ == '__main__':
     args = parse_args()
+
     # Fix random seeds for reproducibility
     if args.seed != -1:
         set_reproducible_mode(args)
