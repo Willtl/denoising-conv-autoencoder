@@ -1,4 +1,5 @@
-# denoising-conv-autoencoder
+# UNET-based denoising autoencoder with symmetric skip connections and classifier
+
 
 Convolutional denoising autoencoder with symmetric skip connections for the noisy (salt, pepper, and random noise) MNIST handwritten digit database. 
 
