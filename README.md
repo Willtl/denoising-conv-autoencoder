@@ -9,8 +9,7 @@ Convolutional denoising autoencoder with symmetric skip connections for the nois
 | Noise         | 75% Noise, 95.1% accuracy   | 
 | :-----:       | :-----:                     |            
 | Noisy         | ![](figures/noisy.png)      |
-| Denoised      | ![](figures/denoised.png)   | 
 | Original      | ![](figures/original.png)   | 
-
+| Denoised      | ![](figures/denoised.png)   | 
 
 ## To-Do
