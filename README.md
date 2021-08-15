@@ -6,7 +6,7 @@ Convolutional denoising autoencoder with symmetric skip connections for the nois
   * Salt, pepper, and random noise is added to the MNIST handwritten digit database.
   * You can easily generate a new dataset accordingly to your needs by tuning the noise parameters
 
-| Noise         | 75%                         | 
+| Noise         | 75% Noise, 95.1% accuracy   | 
 | :-----:       | :-----:                     |            
 | Noisy         | ![](figures/noisy.png)      |
 | Denoised      | ![](figures/denoised.png)   | 
