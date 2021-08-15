@@ -10,6 +10,4 @@ Convolutional denoising autoencoder with symmetric skip connections for the nois
 | :-----:       | :-----:                     |            
 | Noisy         | ![](figures/noisy.png)      |
 | Original      | ![](figures/original.png)   | 
-| Denoised      | ![](figures/denoised.png)   | 
-
-## To-Do
+| Denoised      | ![](figures/denoised.png)   |  
