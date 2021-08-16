@@ -1,4 +1,4 @@
-# UNET-based denoising autoencoder with symmetric skip connections and classifier
+# UNET-based denoising autoencoder with symmetric skip connections
 
 | Noise         | 75% Noise, 95.1% accuracy   | 
 | :-----:       | :-----:                     |            
