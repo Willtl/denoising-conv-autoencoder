@@ -22,9 +22,9 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
     model.train()
     mean_loss1, mean_loss2, mean_loss3 = [], [], []
     start = time.time()
-    with tqdm(train_loader, unit="batch") as train_epoch:
+    with tqdm(train_loader, unit='batch') as train_epoch:
         # Add description to the tqdm bar
-        train_epoch.set_description(f"Training Phase - Epoch {epoch}")
+        train_epoch.set_description(f'Training {args.model_name} - Epoch {epoch}')
 
         for batch_idx, (b_x, b_y, b_z) in enumerate(train_epoch):
             b_x, b_y, b_z = b_x.to(device), b_y.to(device), b_z.to(device)
@@ -53,15 +53,16 @@ def train(args, model, device, train_loader, optimizer, epoch, criterion1, crite
             optimizer.step()
 
             # Keep loss of each batch to calculate the mean over the epoch
-            mean_loss1.append(loss1.to(torch.device("cpu")).item())  # used to calculate the autoencoder epoch mean loss
-            mean_loss2.append(loss2.to(torch.device("cpu")).item())  # used to calculate the classifier epoch mean loss
-            mean_loss3.append(loss3.to(torch.device("cpu")).item())  # used to calculate the weighted mean loss
+            mean_loss1.append(loss1.to(torch.device('cpu')).item())  # used to calculate the autoencoder epoch mean loss
+            mean_loss2.append(loss2.to(torch.device('cpu')).item())  # used to calculate the classifier epoch mean loss
+            mean_loss3.append(loss3.to(torch.device('cpu')).item())  # used to calculate the weighted mean loss
 
             # Calculate spend time so far
             elapsed_time = time.time() - start
+            current_lr = optimizer.state_dict()['param_groups'][0]['lr']
 
             # Update the bar with the time and mean loss info
-            train_epoch.set_postfix(time=elapsed_time, mean_rec_loss=np.mean(np.array(mean_loss1)),
+            train_epoch.set_postfix(current_lr=current_lr, mean_rec_loss=np.mean(np.array(mean_loss1)),
                                     mean_cls_loss=np.mean(np.array(mean_loss2)),
                                     mean_loss=np.mean(np.array(mean_loss3)))
         time.sleep(0.1)  # to avoid tqdm bar problems
@@ -72,9 +73,9 @@ def validate(args, model, device, valid_loader, criterion1, criterion2):
     with torch.no_grad():
         val_loss = []
         correct = 0
-        with tqdm(valid_loader, unit="batch") as valid_epoch:
+        with tqdm(valid_loader, unit='batch') as valid_epoch:
             # Add description to the tqdm bar
-            valid_epoch.set_description(f"Validation Phase")
+            valid_epoch.set_description(f'Validating {args.model_name}')
 
             for b_x, b_y, b_z in valid_epoch:
                 b_x, b_y, b_z = b_x.to(device), b_y.to(device), b_z.to(device)
@@ -114,17 +115,18 @@ def test(model, device, test_loader):
                     correct += 1
                 total += 1
 
-        print("Accuracy: ", round(correct / total, 6))
+        print('Accuracy: ', round(correct / total, 6))
 
 
+# Visualize the output of the decoder, the denoised images
 def denoise(args, model, data_loader):
     import os
-    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-    """ Visualize the output of the decoder, the denoised images """
     # Define GPU and CPU devices
-    cpu = torch.device("cpu")
-    gpu = torch.device("cuda:0")
+    cpu = torch.device('cpu')
+    gpu = torch.device('cuda:0')
+
     # Pick a random batch for visualization
     iterator = iter(data_loader)
     x_batch, y_batch, z_batch = iterator.next()
@@ -135,14 +137,14 @@ def denoise(args, model, data_loader):
     with torch.no_grad():
         # Set the model to evaluation mode
         model = model.eval()
-        print('denoising1')
+
         # Encode and decode view_data to visualize the outcome
         encoded_data, decoded_data, classf_data = model(view_data.to(gpu))
         decoded_data = decoded_data.to(cpu)
-        print('denoising2')
+
         # initialize figure
         f, a = plt.subplots(3, args.denoise_images, figsize=(5, 2))
-        print('denoising3')
+
         for i in range(args.denoise_images):
             a[0][i].imshow(np.reshape(view_data.data.numpy()[i], (32, 32)), cmap='gray')
             a[0][i].set_xticks(())
@@ -179,18 +181,20 @@ def load_data(set_type):
 
 
 def main(args):
-    # Define GPU and CPU devices
-    device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
-    # Load train and split into train and valid loaders
+    # Define device
+    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+
+    # Load train and split into training and validation loaders
     data = load_data('train')
     train_set, valid_set = torch.utils.data.random_split(data, [54000, 6000])
     train_loader = DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     valid_loader = DataLoader(dataset=valid_set, batch_size=args.batch_size, shuffle=True, pin_memory=True)
+
     # Load test data
     test_set = load_data('test')
     test_loader = DataLoader(dataset=test_set, batch_size=args.test_batch_size, shuffle=True, pin_memory=True)
 
-    # Instantiate models
+    # Instantiate model
     if args.model_name == 'unet':
         model, bkp_model = UnetAutoencoder(), UnetAutoencoder()
     else:
@@ -207,55 +211,49 @@ def main(args):
     criterion2 = nn.NLLLoss().to(device)
 
     # Learning rate scheduler
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)  # , min_lr=1e-5)
+    scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, verbose=False, min_lr=1e-5)
 
     # Plotting loss and accuracy before training
     validate(args, model, device, valid_loader, criterion1, criterion2)
 
     # Main loop
-    best_loss, loss_counter, best_accuracy = float("inf"), 0, 0
+    best_loss, loss_counter, best_accuracy = float('inf'), 0, 0
     for epoch in range(1, args.epochs + 1):
-        print(f'Current learning rate ' + str(optimizer.state_dict()['param_groups'][0]['lr']))
-        time.sleep(0.1)  # to avoid tqdm bar problems
-
         # Train the model for this epoch
         train(args, model, device, train_loader, optimizer, epoch, criterion1, criterion2)
 
         # Validate the model for this epoch
         val_loss, accuracy = validate(args, model, device, valid_loader, criterion1, criterion2)
 
+        # Adjust learning rate (it can be adjusted based on the loss instead of accuracy -> change mode to min)
+        scheduler.step(accuracy)
+
         # Store the parameters that lead to the best accuracy
         if accuracy > best_accuracy:
+            # print(f'New best val. loss: {val_loss} < {best_loss}')
             bkp_model.load_state_dict(model.state_dict())
             best_accuracy = accuracy
-
-        # Adjust learning rate
-        scheduler.step(val_loss)
-        # If val_loss is improved keep a bkp of the model
-        if val_loss < best_loss:
-            print(f"New best val. loss: {val_loss} < {best_loss}")
-            best_loss = val_loss
-            bkp_model.load_state_dict(model.state_dict())
             loss_counter = 0
         # Check number of epochs without improvement and stop if equals to args.max_epochs
         else:
             loss_counter += 1
             if loss_counter == args.max_epochs:
                 break
-            print(f'{loss_counter} epochs without improving best loss {best_loss}')
+            print(f'{loss_counter} epochs without improving accuracy {accuracy}')
+            time.sleep(0.1)
 
     # Restore the best parameters
-    print("Restoring model which lead to the best val. accuracy.")
+    print('Load best model')
     model.load_state_dict(bkp_model.state_dict())
 
-    print("Comparing val. accuracy with previous model.")
-    validate(args, model, device, valid_loader, criterion1, criterion2)
-
     # Store model
-    print('Save model')
-    if not os.path.exists('trained_models/'):
+    print(f'Save model {args.model_name}')
+
+    try:
+        torch.save(model.state_dict(), f'trained_models/{args.model_name}.pt')
+    except OSError as e:
         os.makedirs(f'trained_models/')
-        torch.save(model.state_dict(), 'trained_models/autoencoder.pt')
+        torch.save(model.state_dict(), f'trained_models/{args.model_name}.pt')
 
     print('Plot images')
     # Plot denoised images
@@ -263,7 +261,7 @@ def main(args):
         denoise(args, model, valid_loader)
 
     # Test classification accuracy over the test set
-    # test(model, device, test_loader)
+    test(model, device, test_loader)
 
 
 def parse_args():
@@ -279,7 +277,7 @@ def parse_args():
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 100)')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate (default: 0.001)')
     parser.add_argument('--batch-size', type=int, default=64, help='input batch size for training (default: 64)')
-    parser.add_argument('--max-epochs', type=int, default=10, help='stop training after max-epochs without improvement')
+    parser.add_argument('--max-epochs', type=int, default=15, help='stop training after max-epochs without improvement')
     parser.add_argument('--test-batch-size', type=int, default=300, help='input batch size for testing (default: 1000)')
     parser.add_argument('--l1', default=False, help='use L1 regularization')
     parser.add_argument('--save-model', default=False, help='For Saving the current Model')
